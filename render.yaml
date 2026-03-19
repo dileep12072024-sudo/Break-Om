@@ -8,7 +8,7 @@ services:
     plan: free
     autoDeploy: true
 
-  - type: static_site
+  - type: staticSite
     name: hunyuan3d-demo-frontend
     rootDir: frontend
     buildCommand: npm install && npm run build
