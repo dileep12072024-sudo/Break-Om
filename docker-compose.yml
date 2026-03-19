@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: hunyuan3d-postgres
+    environment:
+      POSTGRES_DB: hunyuan3d
+      POSTGRES_USER: hunyuan3d
+      POSTGRES_PASSWORD: hunyuan3d123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - hunyuan3d-network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: hunyuan3d-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - hunyuan3d-network
+    restart: unless-stopped
+
+  # Backend API (with GPU support)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        - CUDA_VERSION=11.8
+        - PYTHON_VERSION=3.9
+    container_name: hunyuan3d-backend
+    environment:
+      - DATABASE_URL=postgresql://hunyuan3d:hunyuan3d123@postgres:5432/hunyuan3d
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=hunyuan3d-super-secret-key-change-in-production
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./backend:/app
+      - model_cache:/app/models
+      - upload_cache:/app/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - hunyuan3d-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hunyuan3d-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - hunyuan3d-network
+    restart: unless-stopped
+
+  # Celery Worker for background tasks
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hunyuan3d-celery
+    command: celery -A app.main worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://hunyuan3d:hunyuan3d123@postgres:5432/hunyuan3d
+      - REDIS_URL=redis://redis:6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./backend:/app
+      - model_cache:/app/models
+      - upload_cache:/app/uploads
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - hunyuan3d-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: hunyuan3d-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - hunyuan3d-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  model_cache:
+  upload_cache:
+
+networks:
+  hunyuan3d-network:
+    driver: bridge

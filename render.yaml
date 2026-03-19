@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: hunyuan3d-demo-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements-demo.txt
+    startCommand: python test_server.py
+    plan: free
+    autoDeploy: true
+
+  - type: static_site
+    name: hunyuan3d-demo-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: out
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: hunyuan3d-demo-backend
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
