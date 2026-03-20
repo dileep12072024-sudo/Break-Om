@@ -1,6 +1,7 @@
 """
 Mock local backend for running the web app without the full Hunyuan stack.
 """
+import os
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -85,9 +86,16 @@ app = FastAPI(
     version="0.2.0",
 )
 
+frontend_origin = os.getenv("FRONTEND_ORIGIN")
+allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+if frontend_origin:
+    allowed_origins.append(frontend_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
