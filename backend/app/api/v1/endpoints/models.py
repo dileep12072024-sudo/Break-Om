@@ -5,7 +5,7 @@ import io
 import uuid
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -31,16 +31,14 @@ router = APIRouter()
 @router.post("/generate", response_model=GenerationResponse)
 async def generate_model(
     request: GenerationRequest,
+    http_request: Request,
     db: Session = Depends(get_db)
 ):
     """
     Generate a 3D model from text prompt
     """
     try:
-        # Get Hunyuan service from app state
-        from fastapi import FastAPI
-        app = FastAPI()
-        hunyuan_service = app.state.hunyuan_service
+        hunyuan_service = http_request.app.state.hunyuan_service
         
         # Generate unique model ID
         model_id = str(uuid.uuid4())
@@ -85,6 +83,7 @@ async def generate_model(
 
 @router.post("/generate-from-image", response_model=GenerationResponse)
 async def generate_model_from_image(
+    http_request: Request,
     file: UploadFile = File(...),
     generate_texture: bool = True,
     format: str = "glb",
@@ -104,10 +103,7 @@ async def generate_model_from_image(
         # Read image data
         image_data = await file.read()
         
-        # Get Hunyuan service
-        from fastapi import FastAPI
-        app = FastAPI()
-        hunyuan_service = app.state.hunyuan_service
+        hunyuan_service = http_request.app.state.hunyuan_service
         
         # Generate unique model ID
         model_id = str(uuid.uuid4())
@@ -153,6 +149,7 @@ async def generate_model_from_image(
 @router.post("/edit", response_model=GenerationResponse)
 async def edit_model(
     request: EditRequest,
+    http_request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -170,10 +167,7 @@ async def edit_model(
                 detail="Model not found"
             )
         
-        # Get Hunyuan service
-        from fastapi import FastAPI
-        app = FastAPI()
-        hunyuan_service = app.state.hunyuan_service
+        hunyuan_service = http_request.app.state.hunyuan_service
         
         logger.info(f"Editing model {request.model_id} with prompt: {request.edit_prompt}")
         
@@ -224,6 +218,7 @@ async def edit_model(
 async def download_model(
     model_id: str,
     format: Optional[str] = "glb",
+    http_request: Request = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -241,10 +236,7 @@ async def download_model(
                 detail="Model not found"
             )
         
-        # Get Hunyuan service for format conversion
-        from fastapi import FastAPI
-        app = FastAPI()
-        hunyuan_service = app.state.hunyuan_service
+        hunyuan_service = http_request.app.state.hunyuan_service
         
         # Convert to requested format if needed
         if format != db_model.format:

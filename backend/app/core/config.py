@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     
     # Database
-    DATABASE_URL: str = "postgresql://user:password@localhost/hunyuan3d"
+    DATABASE_URL: str = "sqlite:///./hunyuan3d.db"
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379"

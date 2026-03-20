@@ -10,7 +10,8 @@ import logging
 
 from app.core.config import settings
 from app.api.v1.api import api_router
-from app.core.database import engine, Base
+from app.core.database import engine, Base, SessionLocal
+from app.models.user import User
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +28,25 @@ async def lifespan(app: FastAPI):
     
     # Create database tables
     Base.metadata.create_all(bind=engine)
+
+    # Seed a demo user so model persistence works without auth wiring.
+    db = SessionLocal()
+    try:
+        demo_user = db.query(User).filter(User.id == 1).first()
+        if demo_user is None:
+            db.add(
+                User(
+                    id=1,
+                    email="demo@example.com",
+                    username="demo",
+                    hashed_password="demo",
+                    is_active=True,
+                    is_superuser=False,
+                )
+            )
+            db.commit()
+    finally:
+        db.close()
     
     # Initialize AI models
     try:
@@ -56,6 +76,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_HOSTS,
+    allow_origin_regex=r"https://.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
